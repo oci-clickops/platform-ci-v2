@@ -1,0 +1,60 @@
+name: IaC Security Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'azure/**'
+      - 'oci/**'
+      - '.github/workflows/security-scan.yaml'
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "Provider to scan (use 'all' for the full matrix)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - azure
+          - oci
+jobs:
+  checkov:
+    name: Checkov ${{ matrix.provider }}
+    if: github.event_name != 'workflow_dispatch' || inputs.provider == 'all' || inputs.provider == matrix.provider
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: azure
+            orchestrator_repo: iblake/clickops-terraform-azure-modules-orchestrator
+          - provider: oci
+            orchestrator_repo: iblake/clickops-terraform-oci-modules-orchestrator
+    steps:
+      - name: Checkout configuration repo
+        uses: actions/checkout@v4
+
+      - name: Checkout orchestrator (${{ matrix.provider }})
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.orchestrator_repo }}
+          path: ORCH
+          token: ${{ secrets.ORCHESTRATOR_GITHUB_TOKEN != '' && secrets.ORCHESTRATOR_GITHUB_TOKEN || github.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Checkov
+        run: pip install --upgrade checkov
+
+      - name: Run Checkov (${{ matrix.provider }})
+        run: |
+          checkov -d ORCH \
+            --framework terraform \
+            --quiet \
+            --soft-fail false
