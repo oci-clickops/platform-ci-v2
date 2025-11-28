@@ -1,4 +1,10 @@
-- platform-ci/.github/workflows/azure-shared.yaml exposes the full Azure Terraform pipeline as a reusable workflow_call: it checks out the Azure orchestrator, loads ARM credentials from the runner, renders the OCI backend, runs fmt/validate/plan/apply, and emits Slack + drift issue notifications. Region/mode inputs are passed by repo-specific workflows like azure-terraform.yaml or azure-drift.yaml.
-- platform-ci/.github/workflows/oci-shared.yaml mirrors the same lifecycle for the OCI orchestrator, including drift issue management and Slack alerts, but wired for OCI authentication and modules.
-- platform-ci/.github/workflows/bootstrap-state.yaml bootstraps Terraform state for any project by creating (or reusing) the OCI bucket, writing bootstrap_bucket.json via jq, and publishing the TF_BUCKET, TF_NAMESPACE, TF_KEY_PREFIX, and TF_STATE_REGION secrets back to the calling repo/organization with the GitHub CLI.
-- platform-ci/.github/workflows/security-scan.yaml provides a matrixed Azure/OCI Checkov scan: it clones each orchestrator, installs the Checkov CLI (no Docker dependency), and fails the job on security findings. Repos consuming this workflow just call it with the desired provider filter (or run the whole matrix).
+# Platform CI
+
+This repository contains reusable GitHub Actions workflows for the GitOps architecture.
+
+## Workflows
+
+- **`oci-shared-simple.yaml`**: Reusable workflow for OCI Terraform deployments (Plan & Apply).
+- **`azure-shared-simple.yaml`**: Reusable workflow for Azure Terraform deployments (Plan & Apply).
+
+These workflows are designed to be called by other repositories (e.g., `oci-gitops-demoProject1`) to enforce a consistent CI/CD pipeline.
