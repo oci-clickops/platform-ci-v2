@@ -1,0 +1,203 @@
+name: Azure Terraform Shared (Simple)
+
+on:
+    workflow_call:
+        inputs:
+            mode:
+                required: true
+                type: string
+            region:
+                required: false
+                type: string
+                default: "fra"
+            config_subpath:
+                required: false
+                type: string
+                default: "azure/fra"
+        secrets:
+            GH_PAT:
+                required: true
+
+jobs:
+    run:
+        name: "Azure shared workflow (Simple)"
+        runs-on: self-hosted
+        permissions:
+            contents: read
+            pull-requests: write
+            issues: write
+            packages: read
+            repository-projects: read
+        env:
+            MODE: ${{ inputs.mode }}
+            REGION_INPUT: ${{ inputs.region }}
+            CONFIG_SUBPATH: ${{ inputs.config_subpath }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Clone Azure Orchestrator
+              env:
+                  GH_TOKEN: ${{ secrets.GH_PAT }}
+              run: git clone https://${GH_TOKEN}@github.com/iblake/clickops-orchestrator-azure.git ORCH
+
+            - name: Load Runner Environment
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  echo "✅ ARM credentials loaded from runner environment"
+
+            - name: Replace Subscription ID in config files
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  CONFIG_DIR=${{ github.workspace }}/${CONFIG_SUBPATH}
+                  find "$CONFIG_DIR" -name '*.json' -exec sed -i "s|__SUBSCRIPTION_ID__|$ARM_SUBSCRIPTION_ID|g" {} \;
+                  echo "✅ Subscription ID replaced in configuration files"
+
+            - name: Azure CLI Login
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  az login --service-principal \
+                    --username "$ARM_CLIENT_ID" \
+                    --password "$ARM_CLIENT_SECRET" \
+                    --tenant "$ARM_TENANT_ID" > /dev/null 2>&1
+                  az account set --subscription "$ARM_SUBSCRIPTION_ID" > /dev/null 2>&1
+                  echo "✅ Azure login successful"
+
+            - name: Setup Terraform
+              uses: hashicorp/setup-terraform@v3
+              with:
+                  terraform_version: 1.12.1
+                  terraform_wrapper: true
+
+            - name: Render versions.tf from template
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  cd ${{ github.workspace }}/ORCH
+                  envsubst < versions.tf.template > versions.tf
+                  terraform fmt versions.tf
+
+            - name: Terraform Init
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  cd ${{ github.workspace }}/ORCH
+                  terraform init
+
+            - name: Terraform Format
+              id: format
+              if: ${{ inputs.mode == 'pr' && github.event_name == 'pull_request' }}
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  cd ${{ github.workspace }}/ORCH
+                  terraform fmt -check
+
+            - name: Terraform Validate
+              id: validate
+              if: ${{ inputs.mode == 'pr' && github.event_name == 'pull_request' }}
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  cd ${{ github.workspace }}/ORCH
+                  terraform validate -no-color
+
+            - name: Validate SSH Key Availability (PR only)
+              id: ssh-key
+              if: ${{ inputs.mode == 'pr' && github.event_name == 'pull_request' }}
+              run: |
+                  SSH_KEY_PATH="$HOME/.ssh/azure_vm_key.pub"
+                  if [ ! -f "$SSH_KEY_PATH" ]; then
+                    echo "SSH public key not found at $SSH_KEY_PATH"
+                    echo "Run: ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/azure_vm_key -N ''"
+                    exit 1
+                  fi
+                  echo "SSH key found and ready"
+                  echo "SSH_PUBLIC_KEY=$(cat $SSH_KEY_PATH)" >> $GITHUB_OUTPUT
+
+            - name: Mask SSH Key in logs
+              if: ${{ inputs.mode == 'pr' && github.event_name == 'pull_request' }}
+              run: |
+                  SSH_KEY=$(cat $HOME/.ssh/azure_vm_key.pub)
+                  echo "::add-mask::$SSH_KEY"
+
+            - name: Terraform Plan
+              id: plan
+              run: |
+                  set -euo pipefail
+                  source /opt/actions-runner/.github-runner-env
+                  cd ${{ github.workspace }}/ORCH
+                  CONFIG_DIR=${{ github.workspace }}/${CONFIG_SUBPATH}
+                  VARS=$(find "$CONFIG_DIR" -name '*.json')
+                  echo "Planning with files:\n$VARS"
+
+                  set +e
+                  PLAN_OUTPUT=$(terraform plan -detailed-exitcode -no-color $(for i in $VARS; do echo "-var-file $i"; done) -out=tfplan.binary 2>&1)
+                  PLAN_EXIT_CODE=$?
+                  set -e
+
+                  if [ "$PLAN_EXIT_CODE" -eq 1 ]; then
+                    echo "$PLAN_OUTPUT"
+                    exit 1
+                  fi
+
+                  SANITIZED_PLAN=$(echo "$PLAN_OUTPUT" | \
+                    sed -E "s|/subscriptions/[a-f0-9-]{36}|/subscriptions/***|g" | \
+                    sed -E "s|\"tenant_id\"[[:space:]]*=[[:space:]]*\"[a-f0-9-]{36}\"|\"tenant_id\" = \"***\"|g" | \
+                    sed -E "s|\"subscription_id\"[[:space:]]*=[[:space:]]*\"[a-f0-9-]{36}\"|\"subscription_id\" = \"***\"|g" | \
+                    sed -E "s|ssh-rsa AAAA[A-Za-z0-9+/=]{300,}|ssh-rsa ***REDACTED***|g" | \
+                    sed -E "s|-----BEGIN PUBLIC KEY-----[^-]*-----END PUBLIC KEY-----|***PUBLIC_KEY_REDACTED***|g")
+
+                  {
+                    echo "plan_output<<'EOF'"
+                    echo "$SANITIZED_PLAN"
+                    echo "EOF"
+                    echo "plan_exit_code=$PLAN_EXIT_CODE"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Post PR comment
+              if: ${{ inputs.mode == 'pr' && github.event_name == 'pull_request' }}
+              uses: actions/github-script@v7
+              env:
+                  PLAN: ${{ steps.plan.outputs.plan_output }}
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const output = `#### Terraform Format 🖌 \`${{ steps.format.outcome }}\`
+                      #### Terraform Validate 🤖 \`${{ steps.validate.outcome }}\`
+                      #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+
+                      <details><summary>Show Plan</summary>
+
+                      \`\`\`terraform
+                      ${process.env.PLAN}
+                      \`\`\`
+
+                      </details>
+
+                      *Pushed by: @${{ github.actor }}*`;
+                      github.rest.issues.createComment({
+                        issue_number: context.issue.number,
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        body: output
+                      });
+
+            - name: Upload plan log
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: azure-terraform-plan
+                  path: ${{ github.workspace }}/ORCH/tfplan.binary
+                  if-no-files-found: ignore
+
+            - name: Terraform Apply (on PR merge)
+              id: apply
+              if: ${{ inputs.mode == 'pr' && github.event_name == 'pull_request_target' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+              run: |
+                  source /opt/actions-runner/.github-runner-env
+                  cd ${{ github.workspace }}/ORCH
+                  CONFIG_DIR=${{ github.workspace }}/${CONFIG_SUBPATH}
+                  VARS=$(find "$CONFIG_DIR" -name '*.json')
+                  terraform apply -auto-approve $(for i in $VARS; do echo "-var-file $i"; done)
