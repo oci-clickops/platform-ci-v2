@@ -56,7 +56,7 @@ jobs:
 
       - name: Comment plan on PR
         if: ${{ inputs.mode == 'pr' && github.event.pull_request }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           PLAN: ${{ steps.terraform.outputs.plan_output }}
         with:
