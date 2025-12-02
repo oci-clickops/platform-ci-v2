@@ -46,19 +46,38 @@ def get_region_name(config_path):
 
 def get_repository_name():
     """
-    Get the repository name from GitHub environment variable
+    Get the bucket name from GitHub repository name
 
     GitHub sets GITHUB_REPOSITORY as: "owner/repo-name"
-    We only want the "repo-name" part
+    We extract the bucket name from repo-name pattern: "oe-env-<bucket>[-template]"
+
+    Examples:
+    - "oci-clickops/oe-env-project-template" -> "project"
+    - "oci-clickops/oe-env-myapp" -> "myapp"
+    - "oci-clickops/oe-env-my-new-app" -> "my-new-app"
     """
 
     full_repo = os.environ.get("GITHUB_REPOSITORY", "")
 
-    # Split by "/" and get the last part
+    # Split by "/" and get the repo name part
     if "/" in full_repo:
-        return full_repo.split("/")[-1]
+        repo_name = full_repo.split("/")[-1]
     else:
-        return full_repo
+        repo_name = full_repo
+
+    # Remove prefix "oe-env-"
+    prefix = "oe-env-"
+    if repo_name.startswith(prefix):
+        bucket_name = repo_name[len(prefix):]
+    else:
+        bucket_name = repo_name
+
+    # Remove suffix "-template" if exists
+    suffix = "-template"
+    if bucket_name.endswith(suffix):
+        bucket_name = bucket_name[:-len(suffix)]
+
+    return bucket_name
 
 
 def build_state_key(repo_name, config_path):

@@ -101,6 +101,46 @@ def test_replace_placeholders():
             return False
 
 
+def test_discover_backend():
+    """
+    Test that discover_backend.py parses repository names correctly
+    """
+    print("Testing discover_backend.py repository name parsing...")
+
+    # Import the function we want to test
+    sys.path.insert(0, os.path.dirname(__file__))
+    from discover_backend import get_repository_name
+
+    test_cases = [
+        ("oci-clickops/oe-env-project-template", "project"),
+        ("oci-clickops/oe-env-myapp", "myapp"),
+        ("oci-clickops/oe-env-my-new-app", "my-new-app"),
+        ("owner/oe-env-test", "test"),
+    ]
+
+    all_passed = True
+    for repo_full_name, expected_bucket in test_cases:
+        # Set the environment variable
+        os.environ['GITHUB_REPOSITORY'] = repo_full_name
+
+        # Call the function
+        result = get_repository_name()
+
+        # Check result
+        if result == expected_bucket:
+            print(f"   ✓ {repo_full_name} → {result}")
+        else:
+            print(f"   ✗ {repo_full_name} → {result} (expected: {expected_bucket})")
+            all_passed = False
+
+    if all_passed:
+        print("✅ Repository name parsing works!")
+        return True
+    else:
+        print("❌ Repository name parsing failed!")
+        return False
+
+
 def test_setup_backend():
     """
     Test that setup_backend.py creates the providers.tf file
@@ -166,6 +206,9 @@ def main():
     print()
 
     results.append(test_replace_placeholders())
+    print()
+
+    results.append(test_discover_backend())
     print()
 
     results.append(test_setup_backend())
