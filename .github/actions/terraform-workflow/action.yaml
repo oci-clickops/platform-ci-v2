@@ -10,6 +10,9 @@ inputs:
   orchestrator-repo:
     description: "Terraform orchestrator repository"
     required: true
+  bucket-name:
+    description: "Bucket name for Terraform state"
+    required: true
 outputs:
   plan_output:
     description: "Plan output (sanitized)"
@@ -46,7 +49,7 @@ runs:
     - name: Find backend config
       id: backend
       shell: bash
-      run: python3 "${{ github.action_path }}/../../scripts_python/discover_backend.py" "${{ inputs.cloud }}"
+      run: python3 "${{ github.action_path }}/../../scripts_python/discover_backend.py" "${{ inputs.cloud }}" "${{ inputs.bucket-name }}"
 
     # Configure: Auth and backend
     - name: Authenticate to cloud

@@ -44,28 +44,6 @@ def get_region_name(config_path):
     return os.path.basename(config_path)
 
 
-def get_repository_name():
-    """
-    Get the bucket name from GitHub repository name
-
-    GitHub sets GITHUB_REPOSITORY as: "owner/repo-name"
-    The bucket name is always the repo name (no parsing needed)
-
-    Examples:
-    - "oci-clickops/oci-prod-ProjectDGC" -> "oci-prod-ProjectDGC"
-    - "oci-clickops/oe-env-project-template" -> "oe-env-project-template"
-    - "oci-clickops/myapp" -> "myapp"
-    """
-
-    full_repo = os.environ.get("GITHUB_REPOSITORY", "")
-
-    # Split by "/" and get the repo name part
-    if "/" in full_repo:
-        return full_repo.split("/")[-1]
-    else:
-        return full_repo
-
-
 def build_state_key(repo_name, config_path):
     """
     Build the Terraform state file key
@@ -107,13 +85,14 @@ def main():
     Main function - discover backend config and set variables
     """
 
-    # Step 1: Get the cloud provider from command line
-    if len(sys.argv) != 2:
-        print("Error: Cloud provider required")
-        print("Usage: python discover_backend.py <oci|azure>")
+    # Step 1: Get arguments from command line
+    if len(sys.argv) != 3:
+        print("Error: Cloud provider and bucket name required")
+        print("Usage: python discover_backend.py <oci|azure> <bucket-name>")
         sys.exit(1)
 
     cloud = sys.argv[1]
+    bucket_name = sys.argv[2]
 
     # Step 2: Find the region folder
     config_path = find_region_folder(cloud)
@@ -126,28 +105,25 @@ def main():
     # Step 3: Extract region name
     region = get_region_name(config_path)
 
-    # Step 4: Get repository name
-    repo_name = get_repository_name()
+    # Step 4: Build state key
+    state_key = build_state_key(bucket_name, config_path)
 
-    # Step 5: Build state key
-    state_key = build_state_key(repo_name, config_path)
-
-    # Step 6: Write outputs (for other steps to use)
+    # Step 5: Write outputs (for other steps to use)
     write_github_output("config_subpath", config_path)
     write_github_output("region", region)
-    write_github_output("bucket_name", repo_name)
+    write_github_output("bucket_name", bucket_name)
     write_github_output("state_key", state_key)
 
-    # Step 7: Write environment variables (for bash steps)
+    # Step 6: Write environment variables (for bash steps)
     write_github_env("CONFIG_SUBPATH", config_path)
     write_github_env("DETECTED_REGION", region)
-    write_github_env("BUCKET_NAME", repo_name)
+    write_github_env("BUCKET_NAME", bucket_name)
     write_github_env("STATE_KEY", state_key)
 
-    # Step 8: Show what we found
+    # Step 7: Show what we found
     print("✅ Backend config ready:")
     print(f"   Path: {config_path}")
-    print(f"   Bucket: {repo_name}")
+    print(f"   Bucket: {bucket_name}")
     print(f"   Region: {region}")
     print(f"   State: {state_key}")
 

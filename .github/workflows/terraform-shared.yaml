@@ -15,6 +15,10 @@ on:
         description: "Repository for Terraform modules"
         required: true
         type: string
+      bucket_name:
+        description: "Bucket name for Terraform state"
+        required: true
+        type: string
       runner_labels:
         description: 'Runner labels as JSON array, e.g. ["self-hosted","oci"]'
         required: false
@@ -48,6 +52,7 @@ jobs:
           cloud: ${{ inputs.cloud }}
           mode: ${{ inputs.mode }}
           orchestrator-repo: ${{ inputs.orchestrator_repo }}
+          bucket-name: ${{ inputs.bucket_name }}
 
       - name: Comment plan on PR
         if: ${{ inputs.mode == 'pr' && github.event.pull_request }}

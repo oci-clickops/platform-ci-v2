@@ -103,42 +103,43 @@ def test_replace_placeholders():
 
 def test_discover_backend():
     """
-    Test that discover_backend.py extracts repository names correctly
+    Test that discover_backend.py accepts bucket name as parameter
     """
-    print("Testing discover_backend.py repository name extraction...")
+    print("Testing discover_backend.py with bucket name parameter...")
 
-    # Import the function we want to test
-    sys.path.insert(0, os.path.dirname(__file__))
-    from discover_backend import get_repository_name
+    # Create a temporary directory for testing
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create test structure: oci/eu-frankfurt-1/
+        test_cloud_dir = os.path.join(temp_dir, 'oci')
+        test_region_dir = os.path.join(test_cloud_dir, 'eu-frankfurt-1')
+        os.makedirs(test_region_dir)
 
-    test_cases = [
-        ("oci-clickops/oci-prod-ProjectDGC", "oci-prod-ProjectDGC"),
-        ("oci-clickops/oe-env-project-template", "oe-env-project-template"),
-        ("oci-clickops/myapp", "myapp"),
-        ("owner/test-bucket", "test-bucket"),
-    ]
+        # Set environment variables
+        os.environ['GITHUB_OUTPUT'] = os.path.join(temp_dir, 'output.txt')
+        os.environ['GITHUB_ENV'] = os.path.join(temp_dir, 'env.txt')
 
-    all_passed = True
-    for repo_full_name, expected_bucket in test_cases:
-        # Set the environment variable
-        os.environ['GITHUB_REPOSITORY'] = repo_full_name
+        # Change to temp directory
+        original_dir = os.getcwd()
+        os.chdir(temp_dir)
 
-        # Call the function
-        result = get_repository_name()
+        # Run the script
+        result = subprocess.run(
+            ['python3', os.path.join(original_dir, 'discover_backend.py'), 'oci', 'test-bucket'],
+            capture_output=True,
+            text=True
+        )
 
-        # Check result
-        if result == expected_bucket:
-            print(f"   ✓ {repo_full_name} → {result}")
+        os.chdir(original_dir)
+
+        # Check if it succeeded
+        if result.returncode == 0 and 'test-bucket' in result.stdout:
+            print("✅ Backend discovery with bucket parameter works!")
+            return True
         else:
-            print(f"   ✗ {repo_full_name} → {result} (expected: {expected_bucket})")
-            all_passed = False
-
-    if all_passed:
-        print("✅ Repository name extraction works!")
-        return True
-    else:
-        print("❌ Repository name extraction failed!")
-        return False
+            print("❌ Backend discovery failed!")
+            print(f"   Output: {result.stdout}")
+            print(f"   Error: {result.stderr}")
+            return False
 
 
 def test_setup_backend():
