@@ -1,97 +1,99 @@
 name: Shared Terraform Workflow
 
 on:
-    workflow_call:
-        inputs:
-            mode:
-                description: "pr or apply"
-                required: true
-                type: string
-            cloud:
-                description: "oci or azure"
-                required: true
-                type: string
-            orchestrator_repo:
-                description: "Repository for Terraform modules"
-                required: true
-                type: string
-            runner:
-                description: "Runner to use"
-                required: false
-                type: string
-                default: "self-hosted"
-
-concurrency:
-    group: ${{ inputs.cloud }}-terraform
-    cancel-in-progress: false
+  workflow_call:
+    inputs:
+      mode:
+        description: "pr or apply"
+        required: true
+        type: string
+      cloud:
+        description: "oci or azure"
+        required: true
+        type: string
+      orchestrator_repo:
+        description: "Repository for Terraform modules"
+        required: true
+        type: string
+      runner_labels:
+        description: 'Runner labels as JSON array, e.g. ["self-hosted","oci"]'
+        required: false
+        type: string
+        default: '["self-hosted","oci"]'
 
 jobs:
-    terraform:
-        name: "Terraform ${{ inputs.mode }}"
-        runs-on: ${{ inputs.runner }}
-        permissions:
-            contents: read
-            pull-requests: write
-            issues: write
-        steps:
-            - name: Checkout repo
-              uses: actions/checkout@v4
+  terraform:
+    name: "Terraform ${{ inputs.mode }}"
+    # Runner selection (self-hosted + oci by default)
+    runs-on: ${{ fromJSON(inputs.runner_labels) }}
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: "20"
+    # Concurrency per cloud (oci / azure)
+    concurrency:
+      group: ${{ inputs.cloud }}-terraform
+      cancel-in-progress: false
 
-            - name: Run Terraform
-              id: terraform
-              uses: oci-clickops/platform-ci/.github/actions/terraform-workflow@main
-              with:
-                  cloud: ${{ inputs.cloud }}
-                  mode: ${{ inputs.mode }}
-                  orchestrator-repo: ${{ inputs.orchestrator_repo }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
 
-            # Post plan results to PR comment
-            - name: Comment plan on PR
-              if: ${{ inputs.mode == 'pr' }}
-              uses: actions/github-script@v7
-              env:
-                  PLAN: ${{ steps.terraform.outputs.plan_output }}
-              with:
-                  script: |
-                      const output = `#### Terraform Results
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-                      **Format:** \`${{ steps.terraform.outputs.format_outcome }}\`
-                      **Validate:** \`${{ steps.terraform.outputs.validate_outcome }}\`
-                      **Plan:** \`${{ steps.terraform.outcome }}\`
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-                      <details><summary>Show Plan</summary>
+      - name: Run Terraform
+        id: terraform
+        uses: oci-clickops/platform-ci/.github/actions/terraform-workflow@main
+        with:
+          cloud: ${{ inputs.cloud }}
+          mode: ${{ inputs.mode }}
+          orchestrator-repo: ${{ inputs.orchestrator_repo }}
 
-                      \`\`\`terraform
-                      ${process.env.PLAN}
-                      \`\`\`
+      - name: Comment plan on PR
+        if: ${{ inputs.mode == 'pr' }}
+        uses: actions/github-script@v7
+        env:
+          PLAN: ${{ steps.terraform.outputs.plan_output }}
+        with:
+          script: |
+            const output = `#### Terraform Results
 
-                      </details>
+            **Format:** \`${{ steps.terraform.outputs.format_outcome }}\`
+            **Validate:** \`${{ steps.terraform.outputs.validate_outcome }}\`
+            **Plan:** \`${{ steps.terraform.outcome }}\`
 
-                      *By @${{ github.actor }}*`;
+            <details><summary>Show Plan</summary>
 
-                      github.rest.issues.createComment({
-                        issue_number: context.issue.number,
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        body: output
-                      });
+            \`\`\`terraform
+            ${process.env.PLAN}
+            \`\`\`
 
-            # Apply changes when PR is merged
-            - name: Apply changes
-              if: ${{ github.event_name == 'pull_request_target' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
-              working-directory: ${{ github.workspace }}/ORCH
-              run: |
-                  CONFIG_DIR="${{ github.workspace }}/${{ steps.terraform.outputs.config_subpath }}"
-                  VAR_FILES=$(find "$CONFIG_DIR" -name '*.json' -exec echo -n "-var-file {} " \;)
+            </details>
 
-                  EXTRA_VARS=""
-                  if [ "${{ inputs.cloud }}" = "oci" ]; then
-                    EXTRA_VARS="-var=region=$DETECTED_REGION -var=tenancy_ocid=dummy -var=user_ocid=dummy -var=fingerprint=dummy -var=private_key_path=dummy -var=private_key_password=dummy"
-                  fi
+            *By @${{ github.actor }}*`;
 
-                  terraform apply -auto-approve $EXTRA_VARS $VAR_FILES
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Apply changes
+        if: ${{ github.event_name == 'pull_request_target' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+        working-directory: ${{ github.workspace }}/ORCH
+        run: |
+          CONFIG_DIR="${{ github.workspace }}/${{ steps.terraform.outputs.config_subpath }}"
+          VAR_FILES=$(find "$CONFIG_DIR" -name '*.json' -exec echo -n "-var-file {} " \;)
+
+          EXTRA_VARS=""
+          if [ "${{ inputs.cloud }}" = "oci" ]; then
+            EXTRA_VARS="-var=region=$DETECTED_REGION -var=tenancy_ocid=dummy -var=user_ocid=dummy -var=fingerprint=dummy -var=private_key_path=dummy -var=private_key_password=dummy"
+          fi
+
+          terraform apply -auto-approve $EXTRA_VARS $VAR_FILES
