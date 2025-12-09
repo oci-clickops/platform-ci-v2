@@ -1,0 +1,81 @@
+---
+# Monitoring Agent Installation Tasks
+- name: Check if monitoring agent already installed
+  ansible.builtin.stat:
+    path: /opt/monitoring-agent/bin/agent
+  register: monitoring_agent_stat
+
+- name: Check resource tags for monitoring agent
+  ansible.builtin.set_fact:
+    monitoring_already_installed: "{{ resource_tags.get('monitoring_agent_installed', 'false') == 'true' }}"
+
+- name: Display skip message if already installed
+  ansible.builtin.debug:
+    msg: "ℹ️  Monitoring agent already installed (version {{ resource_tags.get('monitoring_agent_version', 'unknown') }}), skipping"
+  when: monitoring_already_installed | bool
+
+- name: Install monitoring agent
+  when: not (monitoring_already_installed | bool)
+  block:
+    - name: Create monitoring agent directory
+      ansible.builtin.file:
+        path: /opt/monitoring-agent
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Download monitoring agent (placeholder)
+      ansible.builtin.debug:
+        msg: |
+          Would download monitoring agent v{{ agent.version }} from:
+          {{ agent.config.get('download_url', 'https://downloads.example.com/monitoring-agent-' + agent.version + '.tar.gz') }}
+      # Real implementation:
+      # ansible.builtin.get_url:
+      #   url: "{{ agent.config.get('download_url', 'https://downloads.example.com/monitoring-agent-' + agent.version + '.tar.gz') }}"
+      #   dest: "/tmp/monitoring-agent-{{ agent.version }}.tar.gz"
+      #   mode: '0644'
+
+    - name: Extract monitoring agent (placeholder)
+      ansible.builtin.debug:
+        msg: "Would extract agent to /opt/monitoring-agent"
+      # Real implementation:
+      # ansible.builtin.unarchive:
+      #   src: "/tmp/monitoring-agent-{{ agent.version }}.tar.gz"
+      #   dest: /opt/monitoring-agent
+      #   remote_src: yes
+      #   creates: /opt/monitoring-agent/bin/agent
+
+    - name: Create monitoring agent configuration
+      ansible.builtin.template:
+        src: monitoring-config.j2
+        dest: /opt/monitoring-agent/config.yml
+        mode: '0600'
+        owner: root
+        group: root
+      notify: restart monitoring agent
+
+    - name: Create systemd service for monitoring agent (placeholder)
+      ansible.builtin.debug:
+        msg: "Would create systemd service: /etc/systemd/system/monitoring-agent.service"
+      # Real implementation:
+      # ansible.builtin.template:
+      #   src: monitoring-agent.service.j2
+      #   dest: /etc/systemd/system/monitoring-agent.service
+      #   mode: '0644'
+      #   owner: root
+      #   group: root
+
+    - name: Enable and start monitoring agent (placeholder)
+      ansible.builtin.debug:
+        msg: "Would enable and start monitoring-agent.service"
+      # Real implementation:
+      # ansible.builtin.systemd:
+      #   name: monitoring-agent
+      #   enabled: yes
+      #   state: started
+      #   daemon_reload: yes
+
+    - name: Display success message
+      ansible.builtin.debug:
+        msg: "✅ Monitoring agent v{{ agent.version }} installed successfully"

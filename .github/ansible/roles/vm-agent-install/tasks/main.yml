@@ -1,0 +1,24 @@
+---
+# VM Agent Installation Main Tasks
+- name: Display VM and agent information
+  ansible.builtin.debug:
+    msg: |
+      VM: {{ inventory_hostname }}
+      OCID: {{ oci_ocid }}
+      Agents to install: {{ agents | map(attribute='type') | list | join(', ') }}
+      Resource Tags: {{ resource_tags | default({}) }}
+
+- name: Check if skip based on existing tags
+  ansible.builtin.debug:
+    msg: "Checking resource tags for already installed agents..."
+
+- name: Install each agent
+  ansible.builtin.include_tasks: "{{ agent.type }}-agent.yml"
+  loop: "{{ agents }}"
+  loop_control:
+    loop_var: agent
+    label: "{{ agent.type }} v{{ agent.version }}"
+
+- name: Set fact for operation completion
+  ansible.builtin.set_fact:
+    operation_completed: true

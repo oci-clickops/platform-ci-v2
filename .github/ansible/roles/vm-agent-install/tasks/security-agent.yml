@@ -1,0 +1,51 @@
+---
+# Security Agent Installation Tasks
+- name: Check if security agent already installed
+  ansible.builtin.stat:
+    path: /opt/security-agent/bin/agent
+  register: security_agent_stat
+
+- name: Check resource tags for security agent
+  ansible.builtin.set_fact:
+    security_already_installed: "{{ resource_tags.get('security_agent_installed', 'false') == 'true' }}"
+
+- name: Display skip message if already installed
+  ansible.builtin.debug:
+    msg: "ℹ️  Security agent already installed (version {{ resource_tags.get('security_agent_version', 'unknown') }}), skipping"
+  when: security_already_installed | bool
+
+- name: Install security agent
+  when: not (security_already_installed | bool)
+  block:
+    - name: Create security agent directory
+      ansible.builtin.file:
+        path: /opt/security-agent
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Download security agent (placeholder)
+      ansible.builtin.debug:
+        msg: |
+          Would download security agent v{{ agent.version }} from:
+          {{ agent.config.get('download_url', 'https://downloads.example.com/security-agent-' + agent.version + '.tar.gz') }}
+
+    - name: Extract security agent (placeholder)
+      ansible.builtin.debug:
+        msg: "Would extract agent to /opt/security-agent"
+
+    - name: Create security agent configuration
+      ansible.builtin.debug:
+        msg: |
+          Would create config with:
+          - Scan schedule: {{ agent.config.get('scan_schedule', '0 2 * * *') }}
+          - Update policy: {{ agent.config.get('update_policy', 'auto') }}
+
+    - name: Enable and start security agent (placeholder)
+      ansible.builtin.debug:
+        msg: "Would enable and start security-agent.service"
+
+    - name: Display success message
+      ansible.builtin.debug:
+        msg: "✅ Security agent v{{ agent.version }} installed successfully"

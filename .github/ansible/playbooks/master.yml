@@ -1,0 +1,45 @@
+---
+# Master playbook - routes to specific operations via tags
+- name: Ansible Day-2 Operations Master Playbook
+  hosts: all
+  gather_facts: false
+
+  pre_tasks:
+    - name: Display operation banner
+      run_once: true
+      delegate_to: localhost
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Ansible GitOps Day-2 Operations
+          ========================================
+          Operation Type: {{ operation_type | default('unknown') }}
+          Targets: {{ ansible_play_hosts | length }}
+          ========================================
+      tags: always
+
+# ADB Lifecycle Operations
+- name: ADB Lifecycle Management
+  hosts: adb_instances
+  gather_facts: false
+  tags: ['adb-lifecycle']
+  roles:
+    - role: adb-lifecycle
+
+# VM Agent Installation
+- name: VM Agent Installation
+  hosts: compute_instances
+  gather_facts: true
+  tags: ['vm-agent-install']
+  roles:
+    - role: vm-agent-install
+
+# VM Configuration Updates
+- name: VM Configuration Updates
+  hosts: compute_instances
+  gather_facts: true
+  tags: ['vm-config-update']
+  tasks:
+    - name: Placeholder for VM configuration updates
+      ansible.builtin.debug:
+        msg: "VM configuration update tasks will be defined here"

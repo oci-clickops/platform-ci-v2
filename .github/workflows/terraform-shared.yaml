@@ -1,0 +1,85 @@
+name: Shared Terraform Workflow
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "pr or apply"
+        required: true
+        type: string
+      cloud:
+        description: "oci or azure"
+        required: true
+        type: string
+      orchestrator_repo:
+        description: "Repository for Terraform modules"
+        required: true
+        type: string
+      bucket_name:
+        description: "Bucket name for Terraform state"
+        required: true
+        type: string
+      runner_labels:
+        description: 'Runner labels as JSON array, e.g. ["self-hosted","oci"]'
+        required: false
+        type: string
+        default: '["self-hosted","oci"]'
+
+jobs:
+  terraform:
+    name: "Terraform ${{ inputs.mode }}"
+    # Runner selection (self-hosted + oci by default)
+    runs-on: ${{ fromJSON(inputs.runner_labels) }}
+
+    # Concurrency per cloud (oci / azure)
+    concurrency:
+      group: ${{ inputs.cloud }}-terraform
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run Terraform
+        id: terraform
+        uses: oci-clickops/platform-ci/.github/actions/terraform-workflow@main
+        with:
+          cloud: ${{ inputs.cloud }}
+          mode: ${{ inputs.mode }}
+          orchestrator-repo: ${{ inputs.orchestrator_repo }}
+          bucket-name: ${{ inputs.bucket_name }}
+
+      - name: Comment plan on PR
+        if: ${{ inputs.mode == 'pr' && github.event.pull_request }}
+        uses: actions/github-script@v8
+        env:
+          PLAN: ${{ steps.terraform.outputs.plan_output }}
+        with:
+          script: |
+            const output = `#### Terraform Results
+
+            **Format:** \`${{ steps.terraform.outputs.format_outcome }}\`
+            **Validate:** \`${{ steps.terraform.outputs.validate_outcome }}\`
+            **Plan:** \`${{ steps.terraform.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *By @${{ github.actor }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });

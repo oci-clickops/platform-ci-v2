@@ -1,0 +1,163 @@
+name: "Terraform Workflow"
+description: "Run Terraform: auth, config, plan"
+inputs:
+  cloud:
+    description: "Cloud provider (oci or azure)"
+    required: true
+  mode:
+    description: "Workflow mode (pr or apply)"
+    required: true
+  orchestrator-repo:
+    description: "Terraform orchestrator repository"
+    required: true
+  bucket-name:
+    description: "Bucket name for Terraform state"
+    required: true
+outputs:
+  plan_output:
+    description: "Plan output (sanitized)"
+    value: ${{ steps.plan.outputs.plan_output }}
+  plan_exit_code:
+    description: "Plan exit code (0=no changes, 2=changes)"
+    value: ${{ steps.plan.outputs.plan_exit_code }}
+  format_outcome:
+    description: "Format check result"
+    value: ${{ steps.format.outcome }}
+  validate_outcome:
+    description: "Validate result"
+    value: ${{ steps.validate.outcome }}
+  config_subpath:
+    description: "Config subdirectory path"
+    value: ${{ steps.backend.outputs.config_subpath }}
+runs:
+  using: "composite"
+  steps:
+    # Setup: Get code and tools
+    - name: Checkout orchestrator repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.orchestrator-repo }}
+        path: ORCH
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.12.1
+        terraform_wrapper: true
+
+    # Discover backend config
+    - name: Find backend config
+      id: backend
+      shell: bash
+      run: python3 "${{ github.action_path }}/../../scripts_python/discover_backend.py" "${{ inputs.cloud }}" "${{ inputs.bucket-name }}"
+
+    # Configure: Auth and backend
+    - name: Authenticate to cloud
+      shell: bash
+      run: |
+        if [ "${{ inputs.cloud }}" = "azure" ]; then
+          az login --service-principal \
+            --username "$ARM_CLIENT_ID" \
+            --password "$ARM_CLIENT_SECRET" \
+            --tenant "$ARM_TENANT_ID"
+          az account set --subscription "$ARM_SUBSCRIPTION_ID"
+          echo "✅ Azure authentication complete"
+        else
+          echo "✅ OCI uses Instance Principal (automatic)"
+        fi
+
+    - name: Setup backend config
+      shell: bash
+      run: python3 "${{ github.action_path }}/../../scripts_python/setup_backend.py" "${{ inputs.cloud }}" "${{ github.workspace }}"
+
+    - name: Replace config placeholders
+      shell: bash
+      run: python3 "${{ github.action_path }}/../../scripts_python/replace_placeholders.py" "${{ inputs.cloud }}" "${{ github.workspace }}/${{ steps.backend.outputs.config_subpath }}"
+
+    # Terraform: Init and validate
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ github.workspace }}/ORCH
+      run: terraform init
+
+    # PR only: check code formatting
+    - name: Terraform format check
+      id: format
+      if: ${{ inputs.mode == 'pr' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}/ORCH
+      run: terraform fmt -check
+
+    # PR only: validate configuration
+    - name: Terraform validate
+      id: validate
+      if: ${{ inputs.mode == 'pr' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}/ORCH
+      run: terraform validate -no-color
+
+    # Run plan
+    - name: Terraform plan
+      id: plan
+      shell: bash
+      working-directory: ${{ github.workspace }}/ORCH
+      run: |
+        # Find all JSON config files
+        CONFIG_DIR="${{ github.workspace }}/${{ steps.backend.outputs.config_subpath }}"
+        VAR_FILES=$(find "$CONFIG_DIR" -name '*.json' -exec echo -n "-var-file {} " \;)
+
+        # Extra vars for OCI
+        EXTRA_VARS=""
+        if [ "${{ inputs.cloud }}" = "oci" ]; then
+          EXTRA_VARS="-var=region=$DETECTED_REGION -var=tenancy_ocid=dummy -var=user_ocid=dummy -var=fingerprint=dummy -var=private_key_path=dummy -var=private_key_password=dummy"
+        fi
+
+        # Run plan
+        terraform plan -detailed-exitcode -no-color $EXTRA_VARS $VAR_FILES -out=tfplan.binary > plan_raw.txt 2>&1 || PLAN_EXIT=$?
+
+        # Sanitize output
+        SANITIZED=$(python3 "${{ github.action_path }}/../../scripts_python/sanitize_plan.py" "${{ inputs.cloud }}" "$(cat plan_raw.txt)")
+
+        # Save outputs
+        echo "plan_output<<EOF" >> $GITHUB_OUTPUT
+        echo "$SANITIZED" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        echo "plan_exit_code=${PLAN_EXIT:-0}" >> $GITHUB_OUTPUT
+
+        # Print summary
+        if [ "${PLAN_EXIT:-0}" -eq 0 ]; then
+          echo "✅ Plan completed: No changes"
+        elif [ "${PLAN_EXIT:-0}" -eq 2 ]; then
+          echo "✅ Plan completed: Changes detected"
+        fi
+
+    # Save plan for later
+    - name: Upload plan file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.cloud }}-terraform-plan
+        path: ${{ github.workspace }}/ORCH/tfplan.binary
+        if-no-files-found: ignore
+
+    # Apply: Run only when mode is apply
+    - name: Terraform apply
+      if: ${{ inputs.mode == 'apply' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}/ORCH
+      run: |
+        # Find all JSON config files
+        CONFIG_DIR="${{ github.workspace }}/${{ steps.backend.outputs.config_subpath }}"
+        VAR_FILES=$(find "$CONFIG_DIR" -name '*.json' -exec echo -n "-var-file {} " \;)
+
+        # Extra vars for OCI
+        EXTRA_VARS=""
+        if [ "${{ inputs.cloud }}" = "oci" ]; then
+          EXTRA_VARS="-var=region=$DETECTED_REGION -var=tenancy_ocid=dummy -var=user_ocid=dummy -var=fingerprint=dummy -var=private_key_path=dummy -var=private_key_password=dummy"
+        fi
+
+        # Run apply
+        echo "🚀 Applying Terraform changes..."
+        terraform apply -auto-approve -no-color $EXTRA_VARS $VAR_FILES
+
+        echo "✅ Apply completed successfully"

@@ -1,0 +1,97 @@
+name: Shared Ansible Workflow
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "check or execute"
+        required: true
+        type: string
+      cloud:
+        description: "oci or azure"
+        required: true
+        type: string
+      operation_file:
+        description: "Path to operation JSON file"
+        required: true
+        type: string
+      bucket_name:
+        description: "Bucket name for state files"
+        required: true
+        type: string
+      runner_labels:
+        description: 'Runner labels as JSON array, e.g. ["self-hosted","oci"]'
+        required: false
+        type: string
+        default: '["self-hosted","oci"]'
+
+jobs:
+  ansible:
+    name: "Ansible ${{ inputs.mode }}"
+    runs-on: ${{ fromJSON(inputs.runner_labels) }}
+
+    # Concurrency per cloud provider
+    concurrency:
+      group: ${{ inputs.cloud }}-ansible-${{ github.repository }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout manifest repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Run Ansible Operation
+        id: ansible
+        uses: oci-clickops/platform-ci/.github/actions/ansible-workflow@main
+        with:
+          cloud: ${{ inputs.cloud }}
+          mode: ${{ inputs.mode }}
+          operation-file: ${{ inputs.operation_file }}
+          bucket-name: ${{ inputs.bucket_name }}
+
+      - name: Comment check results on PR
+        if: ${{ inputs.mode == 'check' && github.event.pull_request }}
+        uses: actions/github-script@v7
+        env:
+          CHECK_OUTPUT: ${{ steps.ansible.outputs.check_output }}
+        with:
+          script: |
+            const output = `#### Ansible Operation Check
+
+            **Operation:** \`${{ steps.ansible.outputs.operation_type }}\`
+            **Targets:** \`${{ steps.ansible.outputs.target_count }}\`
+            **Pre-checks:** \`${{ steps.ansible.outputs.precheck_outcome }}\`
+            **Dry-run:** \`${{ steps.ansible.outcome }}\`
+
+            <details><summary>Show Details</summary>
+
+            \`\`\`yaml
+            ${process.env.CHECK_OUTPUT}
+            \`\`\`
+
+            </details>
+
+            *By @${{ github.actor }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Upload execution logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.cloud }}-ansible-logs-${{ github.run_number }}
+          path: |
+            /tmp/ansible-*.log
+            /tmp/inventory*.json
+            /tmp/ansible-state*.json
+          if-no-files-found: ignore

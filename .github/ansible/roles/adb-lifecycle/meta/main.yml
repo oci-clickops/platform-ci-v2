@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  role_name: adb_lifecycle
+  author: OCI ClickOps Team
+  description: Manage Oracle Autonomous Database lifecycle (start/stop)
+  company: OCI ClickOps
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - cloud
+    - oci
+    - oracle
+    - database
+    - autonomous
+
+dependencies: []

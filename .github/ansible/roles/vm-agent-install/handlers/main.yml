@@ -1,0 +1,13 @@
+---
+# Handlers for agent services
+- name: restart monitoring agent
+  ansible.builtin.systemd:
+    name: monitoring-agent
+    state: restarted
+  listen: restart monitoring agent
+
+- name: restart security agent
+  ansible.builtin.systemd:
+    name: security-agent
+    state: restarted
+  listen: restart security agent

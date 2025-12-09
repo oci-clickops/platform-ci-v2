@@ -1,0 +1,196 @@
+name: "Ansible Workflow"
+description: "Execute Ansible operations with dynamic inventory and state tracking"
+inputs:
+  cloud:
+    description: "Cloud provider (oci or azure)"
+    required: true
+  mode:
+    description: "Workflow mode (check or execute)"
+    required: true
+  operation-file:
+    description: "Path to operation JSON file"
+    required: true
+  bucket-name:
+    description: "Bucket name for state files"
+    required: true
+outputs:
+  check_output:
+    description: "Check/dry-run output"
+    value: ${{ steps.check.outputs.check_output }}
+  operation_type:
+    description: "Type of operation executed"
+    value: ${{ steps.discover.outputs.operation_type }}
+  target_count:
+    description: "Number of targets"
+    value: ${{ steps.discover.outputs.target_count }}
+  precheck_outcome:
+    description: "Pre-check validation result"
+    value: ${{ steps.precheck.outcome }}
+  execution_outcome:
+    description: "Final execution result"
+    value: ${{ steps.execute.outcome }}
+
+runs:
+  using: "composite"
+  steps:
+    # Setup: Install dependencies
+    - name: Install Ansible and dependencies
+      shell: bash
+      run: |
+        echo "📦 Installing Ansible and dependencies..."
+        pip install ansible-core==2.16.0 \
+          oci==2.126.0 \
+          jmespath \
+          netaddr
+
+        # Install OCI Ansible collection
+        ansible-galaxy collection install oracle.oci:5.5.0
+
+        echo "✅ Ansible environment ready"
+
+    # Discover: Parse operation manifest
+    - name: Discover operation configuration
+      id: discover
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/../../scripts_python/ansible_discover_operation.py" \
+          "${{ inputs.cloud }}" \
+          "${{ github.workspace }}/${{ inputs.operation-file }}" \
+          "${{ inputs.bucket-name }}"
+
+    # Authenticate to cloud provider
+    - name: Authenticate to cloud
+      shell: bash
+      run: |
+        if [ "${{ inputs.cloud }}" = "azure" ]; then
+          az login --service-principal \
+            --username "$ARM_CLIENT_ID" \
+            --password "$ARM_CLIENT_SECRET" \
+            --tenant "$ARM_TENANT_ID"
+          az account set --subscription "$ARM_SUBSCRIPTION_ID"
+          echo "✅ Azure authentication complete"
+        else
+          echo "✅ OCI uses Instance Principal (automatic)"
+        fi
+
+    # Get OCI namespace for Object Storage operations
+    - name: Set OCI namespace
+      if: ${{ inputs.cloud == 'oci' }}
+      shell: bash
+      run: |
+        echo "🔍 Getting OCI Object Storage namespace..."
+        NAMESPACE=$(oci os ns get --query data --raw-output)
+        echo "STATE_NAMESPACE=$NAMESPACE" >> $GITHUB_ENV
+        echo "✅ OCI namespace set: $NAMESPACE"
+
+    # Generate dynamic inventory from Terraform state
+    - name: Generate dynamic inventory
+      id: inventory
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/../../scripts_python/ansible_generate_inventory.py" \
+          "${{ inputs.cloud }}" \
+          "${{ inputs.bucket-name }}" \
+          "${{ steps.discover.outputs.config_subpath }}" \
+          "${{ inputs.operation-file }}"
+
+    # Load existing Ansible state
+    - name: Load Ansible state
+      id: load_state
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/../../scripts_python/ansible_load_state.py" \
+          "${{ inputs.cloud }}" \
+          "${{ inputs.bucket-name }}" \
+          "${{ steps.discover.outputs.state_key }}"
+
+    # Pre-checks: Validate before execution
+    - name: Run pre-checks
+      id: precheck
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/../../scripts_python/ansible_precheck.py" \
+          "${{ inputs.cloud }}" \
+          "${{ inputs.operation-file }}" \
+          "/tmp/inventory.json" \
+          "/tmp/ansible-state.json"
+
+    # Check mode: Dry-run (like terraform plan)
+    - name: Ansible check (dry-run)
+      id: check
+      if: ${{ inputs.mode == 'check' }}
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../ansible
+      run: |
+        # Run playbook in check mode
+        OPERATION_TYPE="${{ steps.discover.outputs.operation_type }}"
+
+        echo "🔍 Running Ansible in check mode (dry-run)..."
+
+        ansible-playbook \
+          -i /tmp/inventory.json \
+          --check \
+          --diff \
+          -e "@${{ github.workspace }}/${{ inputs.operation-file }}" \
+          -e "ansible_state_file=/tmp/ansible-state.json" \
+          playbooks/master.yml \
+          --tags "$OPERATION_TYPE" \
+          > /tmp/ansible-check.log 2>&1 || CHECK_EXIT=$?
+
+        # Display output
+        cat /tmp/ansible-check.log
+
+        # Save sanitized output for PR comment
+        CHECK_OUTPUT=$(cat /tmp/ansible-check.log | head -100)
+
+        echo "check_output<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHECK_OUTPUT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+        exit ${CHECK_EXIT:-0}
+
+    # Execute mode: Run the operation
+    - name: Ansible execute
+      id: execute
+      if: ${{ inputs.mode == 'execute' }}
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../ansible
+      run: |
+        OPERATION_TYPE="${{ steps.discover.outputs.operation_type }}"
+
+        echo "🚀 Executing Ansible operation: $OPERATION_TYPE"
+
+        ansible-playbook \
+          -i /tmp/inventory.json \
+          -e "@${{ github.workspace }}/${{ inputs.operation-file }}" \
+          -e "ansible_state_file=/tmp/ansible-state.json" \
+          playbooks/master.yml \
+          --tags "$OPERATION_TYPE" \
+          > /tmp/ansible-execute.log 2>&1
+
+        # Display output
+        cat /tmp/ansible-execute.log
+
+        echo "✅ Ansible execution completed"
+
+    # Update state file in OCI bucket
+    - name: Update Ansible state
+      if: ${{ inputs.mode == 'execute' && steps.execute.outcome == 'success' }}
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/../../scripts_python/ansible_update_state.py" \
+          "${{ inputs.cloud }}" \
+          "${{ inputs.bucket-name }}" \
+          "${{ steps.discover.outputs.state_key }}" \
+          "/tmp/ansible-state.json" \
+          "${{ github.workspace }}/${{ inputs.operation-file }}"
+
+    # Update OCI resource tags
+    - name: Update resource tags
+      if: ${{ inputs.mode == 'execute' && steps.execute.outcome == 'success' }}
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/../../scripts_python/ansible_update_tags.py" \
+          "${{ inputs.cloud }}" \
+          "${{ github.workspace }}/${{ inputs.operation-file }}" \
+          "/tmp/inventory.json"

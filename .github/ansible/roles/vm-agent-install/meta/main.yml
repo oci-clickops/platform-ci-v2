@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  role_name: vm_agent_install
+  author: OCI ClickOps Team
+  description: Install and configure monitoring and security agents on VMs
+  company: OCI ClickOps
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: EL
+      versions:
+        - all
+    - name: Ubuntu
+      versions:
+        - all
+  galaxy_tags:
+    - cloud
+    - oci
+    - monitoring
+    - security
+    - agents
+
+dependencies: []

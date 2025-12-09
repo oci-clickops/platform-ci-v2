@@ -1,0 +1,60 @@
+---
+# ADB Lifecycle Management Tasks
+- name: Display ADB operation details
+  ansible.builtin.debug:
+    msg: |
+      ADB: {{ inventory_hostname }}
+      OCID: {{ oci_ocid }}
+      Action: {{ action }}
+      Current State: {{ oci_state | default('unknown') }}
+
+- name: Get current ADB state
+  oracle.oci.oci_database_autonomous_database_facts:
+    autonomous_database_id: "{{ oci_ocid }}"
+  register: adb_current_state
+  delegate_to: localhost
+
+- name: Display current lifecycle state
+  ansible.builtin.debug:
+    msg: "ADB {{ db_name }} is currently {{ adb_current_state.autonomous_databases[0].lifecycle_state }}"
+
+- name: Start ADB
+  oracle.oci.oci_database_autonomous_database_actions:
+    autonomous_database_id: "{{ oci_ocid }}"
+    action: start
+    wait: "{{ wait_for_state }}"
+    wait_timeout: "{{ timeout_minutes * 60 }}"
+  delegate_to: localhost
+  when:
+    - action == 'start'
+    - adb_current_state.autonomous_databases[0].lifecycle_state != 'AVAILABLE'
+  register: adb_start_result
+
+- name: Stop ADB
+  oracle.oci.oci_database_autonomous_database_actions:
+    autonomous_database_id: "{{ oci_ocid }}"
+    action: stop
+    wait: "{{ wait_for_state }}"
+    wait_timeout: "{{ timeout_minutes * 60 }}"
+  delegate_to: localhost
+  when:
+    - action == 'stop'
+    - adb_current_state.autonomous_databases[0].lifecycle_state == 'AVAILABLE'
+  register: adb_stop_result
+
+- name: Display operation result (start)
+  ansible.builtin.debug:
+    msg: "✅ ADB {{ db_name }} started successfully"
+  when: adb_start_result is success and adb_start_result is changed
+
+- name: Display operation result (stop)
+  ansible.builtin.debug:
+    msg: "✅ ADB {{ db_name }} stopped successfully"
+  when: adb_stop_result is success and adb_stop_result is changed
+
+- name: Display skipped message
+  ansible.builtin.debug:
+    msg: "ℹ️  ADB {{ db_name }} already in desired state, skipping"
+  when:
+    - adb_start_result is skipped or adb_start_result is not changed
+    - adb_stop_result is skipped or adb_stop_result is not changed
