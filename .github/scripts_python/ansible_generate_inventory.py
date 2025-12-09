@@ -31,13 +31,21 @@ def download_terraform_state(client, namespace, bucket, config_path):
     """
     Download terraform.tfstate from OCI bucket
 
-    State key format: {repo-name}/oci/{region}/terraform.tfstate
+    Terraform stores state at: {bucket}/{cloud}/{region}/terraform.tfstate
+    Example: oe-env-project-template/oci/eu-frankfurt-1/terraform.tfstate
+
+    Note: We assume bucket name == repository name (GitHub Actions default)
     """
     try:
         # Convert ansible path to terraform state path
         # oci/eu-frankfurt-1 → oci/eu-frankfurt-1/terraform.tfstate
-        # Remove 'ansible/' prefix if present
+        # Remove 'ansible/' prefix if present (shouldn't have it, but defensive)
         tf_state_path = config_path.replace('ansible/', '')
+
+        # Terraform state key includes bucket/repo name as prefix
+        # This matches Terraform's discover_backend.py pattern:
+        #   state_key = f"{repo_name}/{config_path}/terraform.tfstate"
+        # Since bucket_name == repo_name in GitHub Actions, we use bucket here
         tf_state_key = f"{bucket}/{tf_state_path}/terraform.tfstate"
 
         print(f"   Downloading Terraform state: {tf_state_key}")
