@@ -63,10 +63,21 @@ def load_operation_manifest(operation_file):
 
 def build_state_key(repo_name, config_path, operation_type):
     """
-    Build the Ansible state file key in OCI bucket
+    Build state file key for Ansible state in OCI Object Storage
 
-    Format: {repo-name}/ansible/{cloud}/{region}/ansible-state-{operation}.json
-    Example: my-project/ansible/oci/eu-frankfurt-1/ansible-state-adb-lifecycle.json
+    Format: {bucket-name}/ansible/{cloud}/{region}/ansible-state-{operation}.json
+    Example: oe-env-project-template/ansible/oci/eu-frankfurt-1/ansible-state-adb-lifecycle.json
+
+    Note: repo_name parameter is actually bucket_name from GitHub Actions workflow
+          (bucket_name = github.event.repository.name)
+
+    The state key includes the bucket/repo name as an organizational prefix within
+    the object path. This follows the same pattern as Terraform state files and
+    allows multiple projects to share a bucket if needed.
+
+    Ansible state is stored separately from Terraform state:
+    - Terraform: {bucket}/oci/eu-frankfurt-1/terraform.tfstate
+    - Ansible:   {bucket}/ansible/oci/eu-frankfurt-1/ansible-state-{operation}.json
     """
     return f"{repo_name}/ansible/{config_path}/ansible-state-{operation_type}.json"
 
