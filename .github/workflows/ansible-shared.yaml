@@ -47,7 +47,7 @@ jobs:
 
       - name: Run Ansible Operation
         id: ansible
-        uses: oci-clickops/ansible-ci/.github/actions/ansible-workflow@main
+        uses: oci-clickops/platform-ci/.github/actions/ansible-workflow@main
         with:
           cloud: ${{ inputs.cloud }}
           mode: ${{ inputs.mode }}
