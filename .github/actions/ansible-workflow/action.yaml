@@ -55,7 +55,7 @@ runs:
       run: |
         python3 "${{ github.action_path }}/../../scripts_python/ansible_discover_operation.py" \
           "${{ inputs.cloud }}" \
-          "${{ inputs.operation-file }}" \
+          "${{ github.workspace }}/${{ inputs.operation-file }}" \
           "${{ inputs.bucket-name }}"
 
     # Authenticate to cloud provider
