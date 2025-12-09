@@ -38,12 +38,13 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup OCI CLI
+        if: ${{ inputs.cloud == 'oci' }}
+        uses: oracle-actions/configure-oci-cli@v1.3.2
         with:
-          node-version: "20"
+          config_auth: instance_principal
 
       - name: Run Terraform
         id: terraform

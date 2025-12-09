@@ -44,20 +44,20 @@ runs:
         fi
         echo "Work directory: $WORK_TEMP"
 
+    # Setup Python
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.11"
+        cache: "pip"
+
     # Setup: Install dependencies
     - name: Install Ansible and dependencies
       shell: bash
       run: |
-        echo "📦 Installing Ansible and dependencies..."
-        pip install ansible-core==2.16.0 \
-          oci==2.126.0 \
-          jmespath \
-          netaddr
-
-        # Install OCI Ansible collection
+        pip install ansible==9.0.1
         ansible-galaxy collection install oracle.oci:5.5.0
-
-        echo "✅ Ansible environment ready"
+        echo "✅ Ansible and OCI collection installed"
 
     # Discover: Parse operation manifest
     - name: Discover operation configuration

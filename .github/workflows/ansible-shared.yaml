@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout manifest repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -87,10 +87,16 @@ jobs:
           echo "operation_file=$OPERATION_FILE" >> $GITHUB_OUTPUT
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-          cache: 'pip'
+          cache: "pip"
+
+      - name: Setup OCI CLI
+        if: ${{ inputs.cloud == 'oci' }}
+        uses: oracle-actions/configure-oci-cli@v1.3.2
+        with:
+          config_auth: instance_principal
 
       - name: Run Ansible Operation
         id: ansible
@@ -103,7 +109,7 @@ jobs:
 
       - name: Comment check results on PR
         if: ${{ inputs.mode == 'check' && github.event.pull_request }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           CHECK_OUTPUT: ${{ steps.ansible.outputs.check_output }}
         with:

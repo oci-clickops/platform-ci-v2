@@ -44,7 +44,7 @@ runs:
 
     # Setup: Get code and tools
     - name: Checkout orchestrator repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: ${{ inputs.orchestrator-repo }}
         path: ORCH

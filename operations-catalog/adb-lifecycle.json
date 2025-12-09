@@ -1,0 +1,22 @@
+{
+    "name": "ADB Power Management",
+    "description": "Start or stop Autonomous Database",
+    "workflow": "oci-ansible-gitops.yaml",
+    "auto_approve": true,
+    "parameters": {
+        "action": {
+            "label": "Action",
+            "type": "choice",
+            "options": [
+                "start",
+                "stop"
+            ],
+            "required": true
+        },
+        "wait_for_completion": {
+            "label": "Wait for completion",
+            "type": "boolean",
+            "default": true
+        }
+    }
+}

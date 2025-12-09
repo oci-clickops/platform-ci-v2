@@ -32,14 +32,6 @@ Centralized CI/CD workflows for:
     └── roles/adb-lifecycle/      # ADB start/stop operations
 ```
 
-## Key Features
-
-- 🎯 **MVP Focused** - Only ADB lifecycle (start/stop)
-- 🔄 **100% Procedural** - No OOP, simple functions
-- 🚀 **OCI CLI-based** - No Python SDK dependencies
-- 📦 **Minimal** - 7 scripts, ~1126 lines
-- 👨‍🎓 **Junior-Friendly** - Clear, simple code
-
 ## Workflows
 
 ### Terraform Workflow
