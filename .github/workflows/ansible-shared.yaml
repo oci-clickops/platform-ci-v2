@@ -144,6 +144,18 @@ jobs:
             "${{ steps.discover.outputs.config_subpath }}" \
             "${{ inputs.operation_file || steps.detect.outputs.operation_file }}"
 
+      - name: Setup OCI config for Ansible
+        if: inputs.cloud == 'oci'
+        shell: bash
+        run: |
+          mkdir -p ~/.oci
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          auth = instance_principal
+          EOF
+          chmod 600 ~/.oci/config
+          echo "✅ OCI config created for Instance Principal"
+
       # =====================================================================
       # Execute Ansible
       # =====================================================================
