@@ -10,6 +10,7 @@
         autonomous_database_id: "{{ oci_ocid }}"
       register: adb_state
       delegate_to: localhost
+      check_mode: false
 
     - name: Start ADB
       oracle.oci.oci_database_autonomous_database_actions:
