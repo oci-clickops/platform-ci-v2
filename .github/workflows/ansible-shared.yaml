@@ -60,6 +60,18 @@ jobs:
           pip install ansible==9.0.1
           ansible-galaxy collection install oracle.oci:5.5.0
 
+      - name: Install OCI CLI
+        if: inputs.cloud == 'oci'
+        shell: bash
+        run: |
+          if ! command -v oci &> /dev/null; then
+            echo "📦 Installing OCI CLI..."
+            curl -sL https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+            echo "$HOME/bin" >> $GITHUB_PATH
+          else
+            echo "✅ OCI CLI already installed"
+          fi
+
       # =====================================================================
       # Detect operation file (if not provided)
       # =====================================================================

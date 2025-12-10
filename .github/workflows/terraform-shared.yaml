@@ -52,6 +52,18 @@ jobs:
           terraform_version: 1.12.1
           terraform_wrapper: true
 
+      - name: Install OCI CLI
+        if: inputs.cloud == 'oci'
+        shell: bash
+        run: |
+          if ! command -v oci &> /dev/null; then
+            echo "📦 Installing OCI CLI..."
+            curl -sL https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+            echo "$HOME/bin" >> $GITHUB_PATH
+          else
+            echo "✅ OCI CLI already installed"
+          fi
+
       # =====================================================================
       # Discover region
       # =====================================================================
