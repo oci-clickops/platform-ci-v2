@@ -62,7 +62,8 @@ def build_inventory(manifest, adb_map):
         'adb_instances': {'hosts': []}
     }
 
-    adb_resources = manifest.get('targets', {}).get('adb_resources', [])
+    # targets is a list of ADB operations
+    adb_resources = manifest.get('targets', [])
 
     for adb_target in adb_resources:
         name = adb_target.get('display_name')
