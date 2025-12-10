@@ -49,12 +49,13 @@ jobs:
           mkdir -p "$WORK_TEMP"
           echo "WORK_TEMP=$WORK_TEMP" >> $GITHUB_ENV
 
-      - name: Install Ansible
+      - name: Install Ansible and OCI CLI
         shell: bash
         run: |
           python3.11 -m pip install --upgrade pip
-          python3.11 -m pip install ansible==9.0.1
+          python3.11 -m pip install ansible==9.0.1 oci-cli
           ansible-galaxy collection install oracle.oci:5.5.0
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       # =====================================================================
       # Detect operation file (if not provided)
