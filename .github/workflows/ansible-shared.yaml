@@ -52,8 +52,8 @@ jobs:
       - name: Install Ansible
         shell: bash
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install ansible==9.0.1
+          python3.11 -m pip install --upgrade pip
+          python3.11 -m pip install ansible==9.0.1
           ansible-galaxy collection install oracle.oci:5.5.0
 
       # =====================================================================
