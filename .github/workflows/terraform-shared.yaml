@@ -52,16 +52,6 @@ jobs:
           terraform_version: 1.12.1
           terraform_wrapper: true
 
-      - name: Setup OCI CLI (Instance Principal)
-        if: inputs.cloud == 'oci'
-        shell: bash
-        run: |
-          mkdir -p ~/.oci
-          echo "[DEFAULT]" > ~/.oci/config
-          echo "auth = instance_principal" >> ~/.oci/config
-          chmod 600 ~/.oci/config
-          echo "✅ OCI CLI configured for Instance Principal"
-
       # =====================================================================
       # Discover region
       # =====================================================================

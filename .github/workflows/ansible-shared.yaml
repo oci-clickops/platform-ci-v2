@@ -60,16 +60,6 @@ jobs:
           pip install ansible==9.0.1
           ansible-galaxy collection install oracle.oci:5.5.0
 
-      - name: Setup OCI CLI (Instance Principal)
-        if: inputs.cloud == 'oci'
-        shell: bash
-        run: |
-          mkdir -p ~/.oci
-          echo "[DEFAULT]" > ~/.oci/config
-          echo "auth = instance_principal" >> ~/.oci/config
-          chmod 600 ~/.oci/config
-          echo "✅ OCI CLI configured for Instance Principal"
-
       # =====================================================================
       # Detect operation file (if not provided)
       # =====================================================================
