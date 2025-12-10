@@ -57,7 +57,6 @@ def parse_adb_resources(state_data):
 def build_inventory(manifest, adb_map):
     """Construir inventario Ansible para recursos ADB."""
     inventory = {
-        '_meta': {'hostvars': {}},
         'all': {'children': {'adb_instances': {}}},
         'adb_instances': {'hosts': {}}
     }
@@ -74,8 +73,8 @@ def build_inventory(manifest, adb_map):
             sys.exit(1)
 
         adb_info = adb_map[name]
-        inventory['adb_instances']['hosts'][name] = {}
-        inventory['_meta']['hostvars'][name] = {
+        # Put hostvars directly in the host entry
+        inventory['adb_instances']['hosts'][name] = {
             'ansible_connection': 'local',
             'oci_ocid': adb_info['ocid'],
             'oci_state': adb_info['state'],
