@@ -103,8 +103,7 @@ jobs:
           TARGET_COUNT=$(python3 -c "
           import json
           m = json.load(open('$FULL_PATH'))
-          t = m.get('targets', {})
-          print(len(t.get('adb_resources', [])) + len(t.get('vm_resources', [])))
+          print(len(m.get('targets', [])))
           ")
 
           echo "operation_type=$OPERATION_TYPE" >> $GITHUB_OUTPUT
