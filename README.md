@@ -90,3 +90,13 @@ Environment="ARM_TENANT_ID=..."
 Then reload: `systemctl daemon-reload && systemctl restart actions-runner...`
 
 > **Note**: This is more secure than a `.env` file as it is owned by root.
+
+## Scalability
+
+Designed for multiple projects without bottlenecks:
+
+- **Concurrency**: Each project has its own queue (scoped by `github.repository`)
+  - Project A running Terraform does NOT block Project B
+  - Only same-project operations serialize (prevents state conflicts)
+  
+- **Runner Capacity**: Add more runners to handle concurrent load
