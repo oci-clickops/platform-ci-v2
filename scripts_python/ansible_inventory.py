@@ -58,8 +58,8 @@ def build_inventory(manifest, adb_map):
     """Construir inventario Ansible para recursos ADB."""
     inventory = {
         '_meta': {'hostvars': {}},
-        'all': {'children': ['adb_instances']},
-        'adb_instances': {'hosts': []}
+        'all': {'children': {'adb_instances': {}}},
+        'adb_instances': {'hosts': {}}
     }
 
     # targets is a list of ADB operations
@@ -74,7 +74,7 @@ def build_inventory(manifest, adb_map):
             sys.exit(1)
 
         adb_info = adb_map[name]
-        inventory['adb_instances']['hosts'].append(name)
+        inventory['adb_instances']['hosts'][name] = {}
         inventory['_meta']['hostvars'][name] = {
             'ansible_connection': 'local',
             'oci_ocid': adb_info['ocid'],
