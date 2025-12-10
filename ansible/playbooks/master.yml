@@ -3,5 +3,5 @@
 # Orchestrates all operations by importing operation-specific playbooks
 # Usage: ansible-playbook master.yml --tags <operation_type>
 
-- import_playbook: common/adb-lifecycle.yml
+- import_playbook: operations/adb-lifecycle.yml
   tags: [adb-lifecycle]
