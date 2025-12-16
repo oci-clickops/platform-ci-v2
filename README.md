@@ -144,8 +144,15 @@ If your project needs to create **IAM resources** (compartments, groups, policie
 }
 ```
 
-> [!NOTE]
-> For resources that don't require tenancy-level access (ADBs, VMs, etc.), this file is optional. Instance Principal handles authentication automatically.
+**When is this file needed?**
+
+| Resource Type | `oci-credentials.tfvars.json` |
+|---------------|-------------------------------|
+| ADBs, VMs, Networks, Storage | ❌ Not required (Instance Principal handles it) |
+| Compartments, Groups, Policies | ✅ **Required** (needs real `tenancy_ocid`) |
+
+> [!IMPORTANT]
+> If you only deploy databases, compute, or networking resources, you don't need this file. Add it only when creating IAM resources.
 
 ## Requirements
 
