@@ -236,8 +236,10 @@ jobs:
               exit 1
             fi
 
-            EXTRA="-var=region=$CONFIG_REGION -var=tenancy_ocid=dummy -var=user_ocid=dummy"
-            EXTRA="$EXTRA -var=fingerprint=dummy -var=private_key_path=dummy -var=private_key_password=dummy"
+            # Only override region. Other OCI variables (tenancy_ocid, user_ocid, etc.)
+            # should come from oci-credentials.json in the project, following the LZ pattern.
+            # This enables IAM resource creation which requires a real tenancy_ocid.
+            EXTRA="-var=region=$CONFIG_REGION"
           fi
           echo "extra=$EXTRA" >> $GITHUB_OUTPUT
 

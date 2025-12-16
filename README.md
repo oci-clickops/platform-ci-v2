@@ -130,6 +130,23 @@ Targets are matched against ADB `display_name` values found in Terraform state (
 - **OCI**: Instance Principal (self-hosted runners)
 - **Azure**: Service Principal (env vars)
 
+### OCI Credentials File (for IAM resources)
+
+If your project needs to create **IAM resources** (compartments, groups, policies), you must include an `oci-credentials.tfvars.json` file in your config directory with the real `tenancy_ocid`. This follows the same pattern as `oci-clickops-lz`.
+
+```json
+{
+    "tenancy_ocid": "ocid1.tenancy.oc1..YOUR_TENANCY_OCID",
+    "user_ocid": "not-used-with-instance-principal",
+    "fingerprint": "not-used-with-instance-principal",
+    "private_key_path": "not-used-with-instance-principal",
+    "private_key_password": ""
+}
+```
+
+> [!NOTE]
+> For resources that don't require tenancy-level access (ADBs, VMs, etc.), this file is optional. Instance Principal handles authentication automatically.
+
 ## Requirements
 
 - Linux self-hosted runner (bash + GNU utils)
