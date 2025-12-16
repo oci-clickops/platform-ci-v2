@@ -67,15 +67,20 @@ These workflows are designed to be called from a “manifest” repo that contai
 
 - `mode`: `pr` (plan + PR comment) or `apply` (apply)
 - `cloud`: `oci` or `azure`
-- `region`: config folder name (e.g., `eu-frankfurt-1`, `westeurope`); if omitted, falls back to runner `REGION`, then `STATE_REGION`
+- `region`: (Optional) Config folder name (e.g., `eu-frankfurt-1`). **If omitted**, the workflow automatically detects it by checking which files changed in the `{cloud}/` directory.
 - `orchestrator_repo`: repo containing the Terraform modules/orchestrator (checked out into `ORCH/`)
 - `bucket_name`: OCI Object Storage bucket name used for the Terraform backend
 - `runner_labels` (optional): JSON array for `runs-on` (default: `["self-hosted","oci"]`)
 
 **Config resolution**
 
-- Config directory is resolved as `${cloud}/${region}` (e.g., `oci/eu-frankfurt-1`).
-- All `*.json` files in that directory are passed to Terraform as `-var-file <file>.json`.
+The workflow determines the configuration directory in this order:
+
+1. Input `region` (if provided)
+2. **Auto-detection**: Checks `git diff` for changes in `${cloud}/<region>/...`
+3. Runner `REGION` env var
+
+It then resolves to `${cloud}/${region}` (e.g., `oci/eu-frankfurt-1`) and passes all `*.json` files found there to Terraform.
 
 **Terraform state object name**
 
