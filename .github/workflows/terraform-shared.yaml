@@ -256,9 +256,13 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
           echo "exit_code=$EXIT" >> $GITHUB_OUTPUT
 
+          # Exit codes: 0=no changes, 1=error, 2=changes detected
+          # Only exit 1 is a real error
           if [ "$EXIT" -eq 1 ]; then
             exit 1
           fi
+          # Exit 0 or 2 are both success (0=no changes, 2=changes to apply)
+          exit 0
 
       - name: Terraform apply
         if: inputs.mode == 'apply'

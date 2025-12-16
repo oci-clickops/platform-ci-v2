@@ -143,6 +143,9 @@ Targets are matched against ADB `display_name` values found in Terraform state (
 - `STATE_REGION` is the **OCI region where the Terraform state bucket lives** (used by both OCI and Azure jobs because the backend is OCI Object Storage).
 - Config selection uses `oci/<region>/...` or `azure/<region>/...` and is controlled by the workflow input `region` (recommended) or runner env `REGION` as a fallback.
 
+> [!NOTE]
+> **Future Improvement:** Currently `STATE_REGION` must be configured on the runner. For single-region setups (where the state bucket lives in the same region as resources), this could be simplified by defaulting to `CONFIG_REGION` when `STATE_REGION` is not set.
+
 ## Environment Variables [WORKAROUND]
 
 These must be configured on the self-hosted runner:
